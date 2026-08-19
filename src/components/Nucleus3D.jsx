@@ -10,11 +10,12 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
   // Simulation state refs
   const stateRef = useRef({
     time: 0,
-    nucleons: [],
+    baNucleons: [],
+    krNucleons: [],
+    centerNeutrons: [],
     incidentNeutron: null,
     promptNeutrons: [],
     radiationWaves: [],
-    gluonField: null,
     forceGroup: null
   });
 
@@ -81,23 +82,23 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       emissiveIntensity: 0.5
     });
 
-    // Create 92 Protons and 143 Neutrons for U-235 (235 total spheres)
-    const totalNucleons = 235;
-    const protonsCount = 92;
-    const nucleonsGroup = new THREE.Group();
-    scene.add(nucleonsGroup);
+    // --- BARIUM-142 NUCLEUS CLUSTER (142 nucleons: 56p + 86n) ---
+    const baGroup = new THREE.Group();
+    scene.add(baGroup);
 
-    const nucleonInstances = [];
-    const baseRadius = 2.8;
+    const baTotal = 142;
+    const baProtons = 56;
+    const baNucleons = [];
+    const baRadius = 2.3;
 
-    for (let i = 0; i < totalNucleons; i++) {
-      const isProton = i < protonsCount;
+    for (let i = 0; i < baTotal; i++) {
+      const isProton = i < baProtons;
       const mesh = new THREE.Mesh(sphereGeo, isProton ? protonMat : neutronMat);
-      
-      const phi = Math.acos(1 - 2 * (i + 0.5) / totalNucleons);
-      const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
 
-      const r = baseRadius * Math.pow(Math.random(), 0.3);
+      const phi = Math.acos(1 - 2 * (i + 0.5) / baTotal);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
+      const r = baRadius * Math.pow(Math.random(), 0.35);
+
       const x = r * Math.sin(phi) * Math.cos(theta);
       const y = r * Math.sin(phi) * Math.sin(theta);
       const z = r * Math.cos(phi);
@@ -106,31 +107,50 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      nucleonInstances.push({
+      baNucleons.push({
         mesh,
         basePos: new THREE.Vector3(x, y, z),
-        isProton,
-        cluster: i % 2 === 0 ? 'left' : 'right',
-        offsetSpeed: Math.random() * 2 + 1,
         seed: Math.random() * 100
       });
-
-      nucleonsGroup.add(mesh);
+      baGroup.add(mesh);
     }
-    stateRef.current.nucleons = nucleonInstances;
+    stateRef.current.baNucleons = baNucleons;
+    stateRef.current.baGroup = baGroup;
 
-    // Outer Translucent Gluon / Binding Energy Field
-    const fieldGeo = new THREE.SphereGeometry(baseRadius * 1.25, 32, 32);
-    const fieldMat = new THREE.MeshPhongMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.18,
-      wireframe: true,
-      blending: THREE.AdditiveBlending
-    });
-    const gluonField = new THREE.Mesh(fieldGeo, fieldMat);
-    scene.add(gluonField);
-    stateRef.current.gluonField = gluonField;
+    // --- KRYPTON-91 NUCLEUS CLUSTER (91 nucleons: 36p + 55n) ---
+    const krGroup = new THREE.Group();
+    scene.add(krGroup);
+
+    const krTotal = 91;
+    const krProtons = 36;
+    const krNucleons = [];
+    const krRadius = 1.9;
+
+    for (let i = 0; i < krTotal; i++) {
+      const isProton = i < krProtons;
+      const mesh = new THREE.Mesh(sphereGeo, isProton ? protonMat : neutronMat);
+
+      const phi = Math.acos(1 - 2 * (i + 0.5) / krTotal);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
+      const r = krRadius * Math.pow(Math.random(), 0.35);
+
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      krNucleons.push({
+        mesh,
+        basePos: new THREE.Vector3(x, y, z),
+        seed: Math.random() * 100
+      });
+      krGroup.add(mesh);
+    }
+    stateRef.current.krNucleons = krNucleons;
+    stateRef.current.krGroup = krGroup;
 
     // Incident Neutron Mesh (incoming thermal neutron)
     const incidentGeo = new THREE.SphereGeometry(0.4, 16, 16);
@@ -319,34 +339,37 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       const t = st.time;
 
       forceGroup.visible = showForces && (phase === 1 || phase === 3);
-
       promptNeutronsGroup.visible = false;
       radGroup.visible = false;
 
-      // Track positions for 2D UI Overlay Labels
       let currentLabels = [];
 
-      // Phase 1: Equilibrium Quantum Jitter
+      // --- PHASE 1: Equilibrium U-235 (Ba-142 and Kr-91 clusters fully overlapping at origin) ---
       if (phase === 1) {
         incidentNeutron.position.set(-25, 0, 0);
-        st.nucleons.forEach((item) => {
-          const jitterX = Math.sin(t * 4 + item.seed) * 0.12;
-          const jitterY = Math.cos(t * 3 + item.seed) * 0.12;
-          const jitterZ = Math.sin(t * 5 + item.seed) * 0.12;
-          item.mesh.position.set(item.basePos.x + jitterX, item.basePos.y + jitterY, item.basePos.z + jitterZ);
+
+        // Position Ba-142 cluster at X = -0.8, Kr-91 cluster at X = +0.8 (merged/overlapping)
+        baGroup.position.set(-0.8, 0, 0);
+        krGroup.position.set(0.8, 0, 0);
+
+        st.baNucleons.forEach((item) => {
+          const jX = Math.sin(t * 4 + item.seed) * 0.1;
+          const jY = Math.cos(t * 3 + item.seed) * 0.1;
+          item.mesh.position.set(item.basePos.x + jX, item.basePos.y + jY, item.basePos.z);
         });
-        nucleonsGroup.position.set(0, 0, 0);
-        gluonField.position.set(0, 0, 0);
-        gluonField.scale.set(1, 1, 1);
-        gluonField.visible = true;
+        st.krNucleons.forEach((item) => {
+          const jX = Math.sin(t * 4.5 + item.seed) * 0.1;
+          const jY = Math.cos(t * 3.5 + item.seed) * 0.1;
+          item.mesh.position.set(item.basePos.x + jX, item.basePos.y + jY, item.basePos.z);
+        });
 
         const mainPos = projectToScreen(new THREE.Vector3(0, 4.2, 0));
         if (mainPos.visible) {
           currentLabels.push({
             id: 'u235',
             title: 'Атом Урану-235 (²³⁵U)',
-            details: '92 протони (p⁺) | 143 нейтрони (n⁰)',
-            badge: '92p⁺ + 143n⁰',
+            details: 'Суміщені ядра Барію (56p) та Криптону (36p)',
+            badge: '92p⁺ + 143n⁰ (235 нуклонів)',
             color: '#00d2ff',
             x: mainPos.x,
             y: mainPos.y
@@ -354,39 +377,43 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // Phase 2: Incident Neutron Approach & Impact
+      // --- PHASE 2: Incident Thermal Neutron Capture ---
       else if (phase === 2) {
         const progress = Math.min(1, (t % 4) / 4);
         const neutronX = THREE.MathUtils.lerp(-25, -2.5, progress);
         incidentNeutron.position.set(neutronX, 0, 0);
 
-        st.nucleons.forEach((item) => {
-          const jitterX = Math.sin(t * 8 + item.seed) * 0.15;
-          const jitterY = Math.cos(t * 7 + item.seed) * 0.15;
-          item.mesh.position.set(item.basePos.x + jitterX, item.basePos.y + jitterY, item.basePos.z);
+        baGroup.position.set(-0.8, 0, 0);
+        krGroup.position.set(0.8, 0, 0);
+
+        st.baNucleons.forEach((item) => {
+          const jX = Math.sin(t * 7 + item.seed) * 0.12;
+          item.mesh.position.set(item.basePos.x + jX, item.basePos.y, item.basePos.z);
+        });
+        st.krNucleons.forEach((item) => {
+          const jX = Math.sin(t * 7.5 + item.seed) * 0.12;
+          item.mesh.position.set(item.basePos.x + jX, item.basePos.y, item.basePos.z);
         });
 
-        // Label for incoming thermal neutron
         const nPos = projectToScreen(new THREE.Vector3(neutronX, 1.2, 0));
         if (nPos.visible) {
           currentLabels.push({
             id: 'n_inc',
             title: 'Тепловий Нейтрон (n⁰)',
-            details: 'Енергія E ≈ 0.025 еВ',
-            badge: '1n⁰ (влучання)',
+            details: 'Влучання в суміщені ядра',
+            badge: '1n⁰ (E = 0.025 еВ)',
             color: '#5ce1e6',
             x: nPos.x,
             y: nPos.y
           });
         }
 
-        // Label for U-235 -> U-236*
         const targetPos = projectToScreen(new THREE.Vector3(0, 4.2, 0));
         if (targetPos.visible) {
           currentLabels.push({
             id: 'u236',
             title: 'Збуджене ядро Урану-236 (*)',
-            details: '92 протони | 144 нейтрони (E_ex ≈ 6.5 МеВ)',
+            details: '92 протони | 144 нейтрони (E_ex = 6.5 МеВ)',
             badge: '92p⁺ + 144n⁰',
             color: '#ff3b5c',
             x: targetPos.x,
@@ -395,43 +422,35 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // Phase 3: Deformation & Necking (Liquid Drop stretching)
+      // --- PHASE 3: Overlapping & Separation Initiation (Ba-142 and Kr-91 starting to slide apart from overlapping state) ---
       else if (phase === 3) {
         incidentNeutron.position.set(-25, 0, 0);
-        const stretchFactor = 1 + Math.sin(t * 3) * 0.75 + 0.5;
-        const pinchFactor = 1 / Math.sqrt(Math.max(0.2, stretchFactor));
 
-        st.nucleons.forEach((item) => {
-          const dir = item.cluster === 'left' ? -1 : 1;
-          const offsetX = item.basePos.x * stretchFactor + dir * (stretchFactor - 1) * 1.8;
-          const offsetY = item.basePos.y * pinchFactor;
-          const offsetZ = item.basePos.z * pinchFactor;
-          item.mesh.position.set(offsetX, offsetY, offsetZ);
-        });
+        // Slide Ba-142 to -2.8 and Kr-91 to +2.8 (partially overlapping at boundaries)
+        const overlapSep = 1.2 + Math.sin(t * 3) * 1.5; 
+        baGroup.position.set(-overlapSep, 0, 0);
+        krGroup.position.set(overlapSep, 0, 0);
 
-        gluonField.scale.set(stretchFactor * 1.2, pinchFactor * 0.9, pinchFactor * 0.9);
-
-        // Labels for left & right deforming lobes
-        const leftLobePos = projectToScreen(new THREE.Vector3(-stretchFactor * 2.5, 3.8, 0));
+        const leftLobePos = projectToScreen(new THREE.Vector3(-overlapSep - 1.0, 3.8, 0));
         if (leftLobePos.visible) {
           currentLabels.push({
             id: 'ba_lobe',
-            title: 'Майбутній осколок Барію',
-            details: '56 протонів | 86 нейтронів',
-            badge: 'Ba lobe (56p)',
+            title: 'Ядро Барію-142 (¹⁴²Ba)',
+            details: 'Накладається на ядро Криптону',
+            badge: '56p⁺ + 86n⁰',
             color: '#a855f7',
             x: leftLobePos.x,
             y: leftLobePos.y
           });
         }
 
-        const rightLobePos = projectToScreen(new THREE.Vector3(stretchFactor * 2.5, 3.8, 0));
+        const rightLobePos = projectToScreen(new THREE.Vector3(overlapSep + 1.0, 3.8, 0));
         if (rightLobePos.visible) {
           currentLabels.push({
             id: 'kr_lobe',
-            title: 'Майбутній осколок Криптону',
-            details: '36 протонів | 55 нейтронів',
-            badge: 'Kr lobe (36p)',
+            title: 'Ядро Криптону-91 (⁹¹Kr)',
+            details: 'Початок кулонівського відштовхування',
+            badge: '36p⁺ + 55n⁰',
             color: '#38bdf8',
             x: rightLobePos.x,
             y: rightLobePos.y
@@ -439,21 +458,17 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // Phase 4: Scission & Radiation Waves + 3 Yellow Free Neutrons
+      // --- PHASE 4: Scission & Rapid Flight Apart + 3 Yellow Free Neutrons & Sine Radiation Rays ---
       else if (phase === 4) {
         incidentNeutron.position.set(-25, 0, 0);
-        gluonField.visible = false;
 
         const loopT = (t % 5);
-        const sep = Math.min(15, loopT * 3.5);
+        const flySep = 2.0 + loopT * 3.8; // Separation distance
 
-        st.nucleons.forEach((item) => {
-          const dir = item.cluster === 'left' ? -1 : 1;
-          const sepX = item.basePos.x + dir * (sep + 1.5);
-          item.mesh.position.set(sepX, item.basePos.y, item.basePos.z);
-        });
+        baGroup.position.set(-flySep, 0, 0);
+        krGroup.position.set(flySep, 0, 0);
 
-        // 3 Yellow Free Neutrons
+        // 3 Yellow Free Neutrons flying apart
         promptNeutronsGroup.visible = true;
         st.promptNeutrons.forEach((p, idx) => {
           const dist = loopT * 7.5;
@@ -466,7 +481,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
               currentLabels.push({
                 id: `free_n_${idx}`,
                 title: '3 Вільні Нейтрони (n⁰)',
-                details: 'Жовті кульки після розпаду',
+                details: 'Жовті кульки розлітаються у просторі',
                 badge: '3 × 1n⁰ (E = 2 МеВ)',
                 color: '#ffbe0b',
                 x: screenP.x,
@@ -476,7 +491,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           }
         });
 
-        // Radiation waves
+        // Dynamic sine wave radiation rays
         radGroup.visible = true;
         const waveSpeed = 16.0;
         const frequency = 2.5;
@@ -503,8 +518,8 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           ray.line.material.opacity = Math.max(0, 1.0 - loopT / 5);
         });
 
-        // Labels for Ba-142 & Kr-91
-        const baPos = projectToScreen(new THREE.Vector3(-(sep + 3.0), 3.5, 0));
+        // Labels for Ba-142 & Kr-91 flying apart
+        const baPos = projectToScreen(new THREE.Vector3(-flySep, 3.5, 0));
         if (baPos.visible) {
           currentLabels.push({
             id: 'ba142',
@@ -517,7 +532,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           });
         }
 
-        const krPos = projectToScreen(new THREE.Vector3((sep + 3.0), 3.5, 0));
+        const krPos = projectToScreen(new THREE.Vector3(flySep, 3.5, 0));
         if (krPos.visible) {
           currentLabels.push({
             id: 'kr91',
@@ -534,17 +549,12 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         redLight.intensity = Math.max(0, 5 - loopT);
       }
 
-      // Phase 5: Fission Products (Ba-142 + Kr-91 + 3 Free Neutrons)
+      // --- PHASE 5: Fission Products (Ba-142 + Kr-91 + 3 Yellow Free Neutrons in space) ---
       else if (phase === 5) {
         incidentNeutron.position.set(-25, 0, 0);
-        gluonField.visible = false;
-        const sep = 16;
 
-        st.nucleons.forEach((item) => {
-          const dir = item.cluster === 'left' ? -1 : 1;
-          const sepX = item.basePos.x + dir * sep;
-          item.mesh.position.set(sepX, item.basePos.y, item.basePos.z);
-        });
+        baGroup.position.set(-17, 0, 0);
+        krGroup.position.set(17, 0, 0);
 
         promptNeutronsGroup.visible = true;
         st.promptNeutrons.forEach((p, idx) => {
@@ -558,7 +568,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
               currentLabels.push({
                 id: `free_n_${idx}`,
                 title: '3 Вільні Нейтрони (n⁰)',
-                details: 'Жовті кульки (розлітаються у просторі)',
+                details: 'Жовті кульки розлітаються',
                 badge: '3 × 1n⁰',
                 color: '#ffbe0b',
                 x: screenP.x,
@@ -590,12 +600,11 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           ray.line.material.opacity = 0.8;
         });
 
-        // Final Fragment Labels
-        const baPos = projectToScreen(new THREE.Vector3(-18, 3.8, 0));
+        const baPos = projectToScreen(new THREE.Vector3(-17, 3.8, 0));
         if (baPos.visible) {
           currentLabels.push({
             id: 'ba142_final',
-            title: 'Ядро Барію-142 (¹⁴²Ba)',
+            title: 'Атом Барію-142 (¹⁴²Ba)',
             details: '56 протонів | 86 нейтронів',
             badge: '56p⁺ + 86n⁰',
             color: '#a855f7',
@@ -604,11 +613,11 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           });
         }
 
-        const krPos = projectToScreen(new THREE.Vector3(18, 3.8, 0));
+        const krPos = projectToScreen(new THREE.Vector3(17, 3.8, 0));
         if (krPos.visible) {
           currentLabels.push({
             id: 'kr91_final',
-            title: 'Ядро Криптону-91 (⁹¹Kr)',
+            title: 'Атом Криптону-91 (⁹¹Kr)',
             details: '36 протонів | 55 нейтронів',
             badge: '36p⁺ + 55n⁰',
             color: '#38bdf8',
@@ -618,9 +627,9 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      nucleonsGroup.rotation.y += 0.003;
+      baGroup.rotation.y += 0.003;
+      krGroup.rotation.y += 0.003;
 
-      // Update React State Labels throttle every 2 frames for 60fps performance
       frameCounter++;
       if (frameCounter % 2 === 0) {
         setLabels(currentLabels);
