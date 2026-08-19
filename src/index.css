@@ -1,0 +1,247 @@
+:root {
+  --bg-dark: #070913;
+  --bg-card: rgba(13, 18, 33, 0.75);
+  --bg-card-hover: rgba(22, 30, 54, 0.85);
+  --border-color: rgba(56, 189, 248, 0.2);
+  --border-active: rgba(56, 189, 248, 0.6);
+  
+  --proton-red: #ff3b5c;
+  --proton-glow: rgba(255, 59, 92, 0.6);
+  --neutron-blue: #00d2ff;
+  --neutron-glow: rgba(0, 210, 255, 0.6);
+  --energy-gold: #ffbe0b;
+  --energy-glow: rgba(255, 190, 11, 0.7);
+  --radiation-purple: #b5179e;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  
+  --font-heading: 'Orbitron', sans-serif;
+  --font-body: 'Outfit', sans-serif;
+  --font-mono: 'Fira Code', monospace;
+
+  --shadow-neon: 0 0 20px rgba(56, 189, 248, 0.25);
+  --backdrop-blur: blur(16px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(8, 11, 20, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.6);
+}
+
+/* Glassmorphism Panel */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  transition: all 0.3s ease;
+}
+
+.glass-panel:hover {
+  border-color: var(--border-active);
+}
+
+/* Header UI */
+.app-header {
+  position: absolute;
+  top: 1rem;
+  left: 1.5rem;
+  right: 1.5rem;
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1.5rem;
+}
+
+.brand-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, #00d2ff 0%, #ff3b5c 50%, #ffbe0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.mode-tabs {
+  display: flex;
+  background: rgba(10, 15, 29, 0.8);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, rgba(0, 210, 255, 0.2), rgba(255, 59, 92, 0.2));
+  color: #ffffff;
+  border: 1px solid var(--border-active);
+  box-shadow: 0 0 15px rgba(0, 210, 255, 0.25);
+}
+
+/* Control Badges & Sliders */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge-proton {
+  background: rgba(255, 59, 92, 0.15);
+  color: #ff6b84;
+  border: 1px solid rgba(255, 59, 92, 0.4);
+}
+
+.badge-neutron {
+  background: rgba(0, 210, 255, 0.15);
+  color: #5ce1e6;
+  border: 1px solid rgba(0, 210, 255, 0.4);
+}
+
+.badge-energy {
+  background: rgba(255, 190, 11, 0.15);
+  color: #ffd000;
+  border: 1px solid rgba(255, 190, 11, 0.4);
+}
+
+/* Buttons */
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  background: rgba(20, 28, 48, 0.8);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-action:hover {
+  background: rgba(30, 42, 72, 0.9);
+  border-color: var(--border-active);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-neon);
+}
+
+.btn-action.primary {
+  background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%);
+  border: none;
+  box-shadow: 0 4px 15px rgba(0, 180, 216, 0.3);
+}
+
+.btn-action.primary:hover {
+  box-shadow: 0 6px 20px rgba(0, 180, 216, 0.5);
+}
+
+/* Slider Controls */
+.custom-slider {
+  width: 100%;
+  accent-color: #00d2ff;
+  cursor: pointer;
+}
+
+/* Gallery & Screenshot Drawer */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.gallery-card {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.gallery-card:hover {
+  border-color: var(--neutron-blue);
+  transform: scale(1.03);
+  box-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
+}
+
+.gallery-card img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-card-title {
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  text-align: center;
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(0, 210, 255, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(255, 59, 92, 0.6); }
+}
+
+.pulse-glow {
+  animation: pulse-glow 3s infinite ease-in-out;
+}
