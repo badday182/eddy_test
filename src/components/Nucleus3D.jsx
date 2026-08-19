@@ -12,7 +12,6 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
     time: 0,
     baNucleons: [],
     krNucleons: [],
-    centerNeutrons: [],
     incidentNeutron: null,
     promptNeutrons: [],
     radiationWaves: [],
@@ -344,11 +343,10 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
 
       let currentLabels = [];
 
-      // --- PHASE 1: Equilibrium U-235 (Ba-142 and Kr-91 clusters fully overlapping at origin) ---
+      // --- PHASE 1: Equilibrium U-235 (Merged Ba-142 and Kr-91 at origin) ---
       if (phase === 1) {
         incidentNeutron.position.set(-25, 0, 0);
 
-        // Position Ba-142 cluster at X = -0.8, Kr-91 cluster at X = +0.8 (merged/overlapping)
         baGroup.position.set(-0.8, 0, 0);
         krGroup.position.set(0.8, 0, 0);
 
@@ -377,10 +375,13 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // --- PHASE 2: Incident Thermal Neutron Capture ---
+      // --- PHASE 2: Incident Thermal Neutron Capture (FORWARD-ONLY LOOPING: -25 to -2.0) ---
       else if (phase === 2) {
-        const progress = Math.min(1, (t % 4) / 4);
-        const neutronX = THREE.MathUtils.lerp(-25, -2.5, progress);
+        // Forward loop: 0 -> 1 -> restart at 0 (No reverse motion!)
+        const cycleDuration = 3.5;
+        const loopT = (t % cycleDuration);
+        const progress = loopT / cycleDuration;
+        const neutronX = THREE.MathUtils.lerp(-25, -2.0, progress);
         incidentNeutron.position.set(neutronX, 0, 0);
 
         baGroup.position.set(-0.8, 0, 0);
@@ -422,12 +423,16 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // --- PHASE 3: Overlapping & Separation Initiation (Ba-142 and Kr-91 starting to slide apart from overlapping state) ---
+      // --- PHASE 3: Overlapping & Separation Initiation (FORWARD-ONLY LOOPING: 0.8 to 3.5) ---
       else if (phase === 3) {
         incidentNeutron.position.set(-25, 0, 0);
 
-        // Slide Ba-142 to -2.8 and Kr-91 to +2.8 (partially overlapping at boundaries)
-        const overlapSep = 1.2 + Math.sin(t * 3) * 1.5; 
+        // Forward linear separation loop: 0.8 -> 3.5 -> restart at 0.8 (No reverse sliding!)
+        const cycleDuration = 4.0;
+        const loopT = (t % cycleDuration);
+        const progress = loopT / cycleDuration;
+        const overlapSep = THREE.MathUtils.lerp(0.8, 3.5, progress);
+
         baGroup.position.set(-overlapSep, 0, 0);
         krGroup.position.set(overlapSep, 0, 0);
 
@@ -436,7 +441,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           currentLabels.push({
             id: 'ba_lobe',
             title: 'Ядро Барію-142 (¹⁴²Ba)',
-            details: 'Накладається на ядро Криптону',
+            details: 'Початок зсуву від початкового стан',
             badge: '56p⁺ + 86n⁰',
             color: '#a855f7',
             x: leftLobePos.x,
@@ -458,20 +463,22 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // --- PHASE 4: Scission & Rapid Flight Apart + 3 Yellow Free Neutrons & Sine Radiation Rays ---
+      // --- PHASE 4: Scission & Rapid Flight Apart (FORWARD-ONLY LOOPING: 2.0 to 16.0) ---
       else if (phase === 4) {
         incidentNeutron.position.set(-25, 0, 0);
 
-        const loopT = (t % 5);
-        const flySep = 2.0 + loopT * 3.8; // Separation distance
+        const cycleDuration = 4.5;
+        const loopT = (t % cycleDuration);
+        const progress = loopT / cycleDuration;
+        const flySep = THREE.MathUtils.lerp(2.0, 16.0, progress);
 
         baGroup.position.set(-flySep, 0, 0);
         krGroup.position.set(flySep, 0, 0);
 
-        // 3 Yellow Free Neutrons flying apart
+        // 3 Yellow Free Neutrons flying apart linearly forward
         promptNeutronsGroup.visible = true;
         st.promptNeutrons.forEach((p, idx) => {
-          const dist = loopT * 7.5;
+          const dist = progress * 28.0;
           const pos = p.dir.clone().multiplyScalar(dist);
           p.mesh.position.copy(pos);
 
@@ -493,9 +500,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
 
         // Dynamic sine wave radiation rays
         radGroup.visible = true;
-        const waveSpeed = 16.0;
-        const frequency = 2.5;
-        const maxDist = Math.min(30, loopT * waveSpeed);
+        const maxDist = Math.min(32, progress * 32.0);
 
         st.radiationWaves.forEach((ray) => {
           const posArr = ray.positions;
@@ -504,21 +509,20 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
             const fraction = p / (numP - 1);
             const r = fraction * maxDist;
             const amp = Math.sin(fraction * Math.PI) * 0.7; 
-            const waveValue = Math.sin(r * frequency - t * 18);
+            const waveValue = Math.sin(r * 2.5 - t * 18);
 
             const pointPos = ray.dir.clone().multiplyScalar(r)
               .add(ray.perp1.clone().multiplyScalar(waveValue * amp))
-              .add(ray.perp2.clone().multiplyScalar(Math.cos(r * frequency - t * 18) * amp * 0.5));
+              .add(ray.perp2.clone().multiplyScalar(Math.cos(r * 2.5 - t * 18) * amp * 0.5));
 
             posArr[p * 3] = pointPos.x;
             posArr[p * 3 + 1] = pointPos.y;
             posArr[p * 3 + 2] = pointPos.z;
           }
           ray.geo.attributes.position.needsUpdate = true;
-          ray.line.material.opacity = Math.max(0, 1.0 - loopT / 5);
+          ray.line.material.opacity = Math.max(0, 1.0 - progress);
         });
 
-        // Labels for Ba-142 & Kr-91 flying apart
         const baPos = projectToScreen(new THREE.Vector3(-flySep, 3.5, 0));
         if (baPos.visible) {
           currentLabels.push({
@@ -545,11 +549,11 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           });
         }
 
-        pointLight.intensity = Math.max(0, 5 - loopT);
-        redLight.intensity = Math.max(0, 5 - loopT);
+        pointLight.intensity = Math.max(0, 5 * (1 - progress));
+        redLight.intensity = Math.max(0, 5 * (1 - progress));
       }
 
-      // --- PHASE 5: Fission Products (Ba-142 + Kr-91 + 3 Yellow Free Neutrons in space) ---
+      // --- PHASE 5: Fission Products (Independent Ba-142 + Kr-91 + 3 Yellow Free Neutrons) ---
       else if (phase === 5) {
         incidentNeutron.position.set(-25, 0, 0);
 
@@ -568,7 +572,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
               currentLabels.push({
                 id: `free_n_${idx}`,
                 title: '3 Вільні Нейтрони (n⁰)',
-                details: 'Жовті кульки розлітаються',
+                details: 'Жовті кульки у просторі',
                 badge: '3 × 1n⁰',
                 color: '#ffbe0b',
                 x: screenP.x,
