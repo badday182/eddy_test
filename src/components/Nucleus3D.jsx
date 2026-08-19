@@ -9,14 +9,12 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
   // Simulation state refs
   const stateRef = useRef({
     time: 0,
-    phaseProgress: 0, // 0 to 1 inside current phase
     nucleons: [],
     incidentNeutron: null,
     promptNeutrons: [],
-    fragments: { left: null, right: null },
-     shockwaves: [],
-    forceArrows: [],
-    gluonField: null
+    radiationWaves: [],
+    gluonField: null,
+    forceGroup: null
   });
 
   useEffect(() => {
@@ -64,7 +62,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
     // 5. Materials & Geometries
     const sphereGeo = new THREE.SphereGeometry(0.35, 16, 16);
     
-    // Proton material (glowing ruby)
+    // Proton material (glowing ruby red)
     const protonMat = new THREE.MeshStandardMaterial({
       color: 0xff3b5c,
       roughness: 0.2,
@@ -73,7 +71,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       emissiveIntensity: 0.5
     });
 
-    // Neutron material (ice blue)
+    // Bound Neutron material (ice blue inside U-235)
     const neutronMat = new THREE.MeshStandardMaterial({
       color: 0x00d2ff,
       roughness: 0.2,
@@ -95,11 +93,10 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       const isProton = i < protonsCount;
       const mesh = new THREE.Mesh(sphereGeo, isProton ? protonMat : neutronMat);
       
-      // Fibonacci sphere layout for compact nucleus shape
       const phi = Math.acos(1 - 2 * (i + 0.5) / totalNucleons);
       const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
 
-      const r = baseRadius * Math.pow(Math.random(), 0.3); // dense cluster
+      const r = baseRadius * Math.pow(Math.random(), 0.3);
       const x = r * Math.sin(phi) * Math.cos(theta);
       const y = r * Math.sin(phi) * Math.sin(theta);
       const z = r * Math.cos(phi);
@@ -108,12 +105,11 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      // Store initial relative offsets for deformation calculation
       nucleonInstances.push({
         mesh,
         basePos: new THREE.Vector3(x, y, z),
         isProton,
-        cluster: i % 2 === 0 ? 'left' : 'right', // assigned split lobe
+        cluster: i % 2 === 0 ? 'left' : 'right',
         offsetSpeed: Math.random() * 2 + 1,
         seed: Math.random() * 100
       });
@@ -135,7 +131,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
     scene.add(gluonField);
     stateRef.current.gluonField = gluonField;
 
-    // Incident Neutron Mesh
+    // Incident Neutron Mesh (incoming thermal neutron)
     const incidentGeo = new THREE.SphereGeometry(0.4, 16, 16);
     const incidentMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
@@ -147,22 +143,95 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
     scene.add(incidentNeutron);
     stateRef.current.incidentNeutron = incidentNeutron;
 
-    // Prompt Neutrons (created during scission)
-    const promptGroup = new THREE.Group();
-    scene.add(promptGroup);
-    stateRef.current.promptNeutronsGroup = promptGroup;
+    // --- 3 RELEASED FREE NEUTRONS (BRIGHT YELLOW SPHERES RELEASED ON FISSION) ---
+    const promptNeutronsGroup = new THREE.Group();
+    scene.add(promptNeutronsGroup);
 
-    // Shockwave Rings Group
-    const shockwaveGroup = new THREE.Group();
-    scene.add(shockwaveGroup);
-    stateRef.current.shockwaveGroup = shockwaveGroup;
+    const yellowNeutronGeo = new THREE.SphereGeometry(0.5, 20, 20);
+    const yellowNeutronMat = new THREE.MeshStandardMaterial({
+      color: 0xffbe0b,            // Bright yellow
+      emissive: 0xffaa00,         // Glowing amber/yellow
+      emissiveIntensity: 2.5,
+      roughness: 0.1,
+      metalness: 0.3
+    });
+
+    const promptDirections = [
+      new THREE.Vector3(0.4, 1.2, 0.5).normalize(),   // Up-Right-Front
+      new THREE.Vector3(-0.5, -1.0, 0.6).normalize(), // Down-Left-Front
+      new THREE.Vector3(0.1, 0.4, -1.3).normalize()   // Backwards-Up
+    ];
+
+    const promptNeutronMeshes = promptDirections.map((dir, idx) => {
+      const mesh = new THREE.Mesh(yellowNeutronGeo, yellowNeutronMat);
+      
+      const pLight = new THREE.PointLight(0xffbe0b, 2.0, 8);
+      mesh.add(pLight);
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        dir.clone().multiplyScalar(-3.5)
+      ]);
+      const lineMat = new THREE.LineBasicMaterial({ 
+        color: 0xffbe0b, 
+        transparent: true, 
+        opacity: 0.85 
+      });
+      const trail = new THREE.Line(lineGeo, lineMat);
+      mesh.add(trail);
+
+      promptNeutronsGroup.add(mesh);
+      return { mesh, dir, id: idx };
+    });
+    stateRef.current.promptNeutrons = promptNeutronMeshes;
+
+    // --- RADIATION WAVES (SINE WAVE BEAMS RUSHING OUTWARDS IN 8 DIRECTIONS) ---
+    const radGroup = new THREE.Group();
+    scene.add(radGroup);
+
+    // 8 3D radial directions for gamma radiation waves
+    const radDirs = [
+      new THREE.Vector3(1, 0.5, 0.3).normalize(),
+      new THREE.Vector3(-1, 0.6, -0.4).normalize(),
+      new THREE.Vector3(0.2, 1, 0.6).normalize(),
+      new THREE.Vector3(-0.3, -1, -0.5).normalize(),
+      new THREE.Vector3(0.7, -0.5, 1).normalize(),
+      new THREE.Vector3(-0.6, 0.4, -1).normalize(),
+      new THREE.Vector3(0.8, -0.8, -0.3).normalize(),
+      new THREE.Vector3(-0.7, 0.7, 0.8).normalize()
+    ];
+
+    const pointsPerRay = 45;
+    const radiationRays = radDirs.map((dir) => {
+      const positions = new Float32Array(pointsPerRay * 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      const mat = new THREE.LineBasicMaterial({
+        color: 0xc084fc, // glowing violet/magenta radiation wave
+        transparent: true,
+        opacity: 0.9,
+        linewidth: 2
+      });
+
+      const line = new THREE.Line(geo, mat);
+      radGroup.add(line);
+
+      // Create perpendicular vectors for transverse sine wave oscillation
+      const up = new THREE.Vector3(0, 1, 0);
+      const perp1 = new THREE.Vector3().crossVectors(dir, up).normalize();
+      if (perp1.lengthSq() < 0.001) perp1.set(1, 0, 0);
+      const perp2 = new THREE.Vector3().crossVectors(dir, perp1).normalize();
+
+      return { line, dir, perp1, perp2, geo, positions };
+    });
+    stateRef.current.radiationWaves = radiationRays;
 
     // Force Arrows Group
     const forceGroup = new THREE.Group();
     scene.add(forceGroup);
     stateRef.current.forceGroup = forceGroup;
 
-    // Create static force vectors (Strong Force inward, Coulomb outward)
     const arrowDirUp = new THREE.Vector3(0, 1, 0);
     const arrowDirDown = new THREE.Vector3(0, -1, 0);
     const arrowStrong = new THREE.ArrowHelper(arrowDirDown, new THREE.Vector3(0, 4, 0), 2.5, 0x00ff88, 0.6, 0.4);
@@ -214,7 +283,6 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
     window.addEventListener('mouseup', onMouseUp);
     domElem.addEventListener('wheel', onWheel);
 
-    // Resize handler
     const handleResize = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
@@ -238,8 +306,10 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
 
       const t = st.time;
 
-      // Force arrows visibility
       forceGroup.visible = showForces && (phase === 1 || phase === 3);
+
+      promptNeutronsGroup.visible = false;
+      radGroup.visible = false;
 
       // Phase 1: Equilibrium Quantum Jitter
       if (phase === 1) {
@@ -272,8 +342,8 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       // Phase 3: Deformation & Necking (Liquid Drop stretching)
       else if (phase === 3) {
         incidentNeutron.position.set(-25, 0, 0);
-        const stretchFactor = 1 + Math.sin(t * 3) * 0.75 + 0.5; // Stretch along X axis
-        const pinchFactor = 1 / Math.sqrt(Math.max(0.2, stretchFactor)); // Neck constriction
+        const stretchFactor = 1 + Math.sin(t * 3) * 0.75 + 0.5;
+        const pinchFactor = 1 / Math.sqrt(Math.max(0.2, stretchFactor));
 
         st.nucleons.forEach((item) => {
           const dir = item.cluster === 'left' ? -1 : 1;
@@ -286,25 +356,64 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         gluonField.scale.set(stretchFactor * 1.2, pinchFactor * 0.9, pinchFactor * 0.9);
       }
 
-      // Phase 4: Scission & Splitting into Ba-142 and Kr-91
+      // Phase 4: Scission & Radiation Waves + 3 Yellow Free Neutrons
       else if (phase === 4) {
         incidentNeutron.position.set(-25, 0, 0);
         gluonField.visible = false;
 
-        const sep = Math.min(15, (t % 6) * 3); // Separation distance
+        const loopT = (t % 5);
+        const sep = Math.min(15, loopT * 3.5);
 
+        // Split nucleus lobes into Ba-142 & Kr-91
         st.nucleons.forEach((item) => {
           const dir = item.cluster === 'left' ? -1 : 1;
           const sepX = item.basePos.x + dir * (sep + 1.5);
           item.mesh.position.set(sepX, item.basePos.y, item.basePos.z);
         });
 
-        // Flash & shockwave
-        pointLight.intensity = Math.max(0, 5 - (t % 6));
-        redLight.intensity = Math.max(0, 5 - (t % 6));
+        // 3 Yellow Free Neutrons flying apart
+        promptNeutronsGroup.visible = true;
+        st.promptNeutrons.forEach((p) => {
+          const dist = loopT * 7.5;
+          p.mesh.position.copy(p.dir.clone().multiplyScalar(dist));
+        });
+
+        // --- ANIMATE DYNAMIC SINE WAVE RADIATION RAYS RUSHING OUTWARDS ---
+        radGroup.visible = true;
+        const waveSpeed = 16.0; // High speed radiation propagation
+        const frequency = 2.5;
+        const maxDist = Math.min(30, loopT * waveSpeed);
+
+        st.radiationWaves.forEach((ray) => {
+          const posArr = ray.positions;
+          const numP = pointsPerRay;
+
+          for (let p = 0; p < numP; p++) {
+            const fraction = p / (numP - 1);
+            const r = fraction * maxDist;
+
+            // Sine wave transverse displacement: amplitude peaks and oscillates
+            const amp = Math.sin(fraction * Math.PI) * 0.7; 
+            const waveValue = Math.sin(r * frequency - t * 18);
+
+            const pointPos = ray.dir.clone().multiplyScalar(r)
+              .add(ray.perp1.clone().multiplyScalar(waveValue * amp))
+              .add(ray.perp2.clone().multiplyScalar(Math.cos(r * frequency - t * 18) * amp * 0.5));
+
+            posArr[p * 3] = pointPos.x;
+            posArr[p * 3 + 1] = pointPos.y;
+            posArr[p * 3 + 2] = pointPos.z;
+          }
+
+          ray.geo.attributes.position.needsUpdate = true;
+          ray.line.material.opacity = Math.max(0, 1.0 - loopT / 5);
+        });
+
+        pointLight.intensity = Math.max(0, 5 - loopT);
+        redLight.intensity = Math.max(0, 5 - loopT);
       }
 
-      // Phase 5: Energy Bloom & Prompt Neutrons Ejection
+      // Phase 5: Fission Products with continuous radiation waves
       else if (phase === 5) {
         incidentNeutron.position.set(-25, 0, 0);
         gluonField.visible = false;
@@ -313,12 +422,42 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         st.nucleons.forEach((item) => {
           const dir = item.cluster === 'left' ? -1 : 1;
           const sepX = item.basePos.x + dir * sep;
-          const rotY = t * 0.5;
           item.mesh.position.set(sepX, item.basePos.y, item.basePos.z);
+        });
+
+        promptNeutronsGroup.visible = true;
+        st.promptNeutrons.forEach((p) => {
+          const dist = 22 + Math.sin(t * 2 + p.id) * 3;
+          p.mesh.position.copy(p.dir.clone().multiplyScalar(dist));
+        });
+
+        // Continuous radiation sine waves rushing into space
+        radGroup.visible = true;
+        const maxDist = 32;
+
+        st.radiationWaves.forEach((ray) => {
+          const posArr = ray.positions;
+          const numP = pointsPerRay;
+
+          for (let p = 0; p < numP; p++) {
+            const fraction = p / (numP - 1);
+            const r = fraction * maxDist;
+            const amp = Math.sin(fraction * Math.PI) * 0.6;
+            const waveValue = Math.sin(r * 2.2 - t * 16);
+
+            const pointPos = ray.dir.clone().multiplyScalar(r)
+              .add(ray.perp1.clone().multiplyScalar(waveValue * amp));
+
+            posArr[p * 3] = pointPos.x;
+            posArr[p * 3 + 1] = pointPos.y;
+            posArr[p * 3 + 2] = pointPos.z;
+          }
+
+          ray.geo.attributes.position.needsUpdate = true;
+          ray.line.material.opacity = 0.8;
         });
       }
 
-      // Rotate whole nucleus group gently
       nucleonsGroup.rotation.y += 0.003;
 
       renderer.render(scene, camera);
