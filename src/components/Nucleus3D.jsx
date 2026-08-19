@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete }) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const animFrameRef = useRef(null);
+  const [labels, setLabels] = useState([]);
 
   // Simulation state refs
   const stateRef = useRef({
@@ -189,7 +190,6 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
     const radGroup = new THREE.Group();
     scene.add(radGroup);
 
-    // 8 3D radial directions for gamma radiation waves
     const radDirs = [
       new THREE.Vector3(1, 0.5, 0.3).normalize(),
       new THREE.Vector3(-1, 0.6, -0.4).normalize(),
@@ -208,7 +208,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
       const mat = new THREE.LineBasicMaterial({
-        color: 0xc084fc, // glowing violet/magenta radiation wave
+        color: 0xc084fc,
         transparent: true,
         opacity: 0.9,
         linewidth: 2
@@ -217,7 +217,6 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       const line = new THREE.Line(geo, mat);
       radGroup.add(line);
 
-      // Create perpendicular vectors for transverse sine wave oscillation
       const up = new THREE.Vector3(0, 1, 0);
       const perp1 = new THREE.Vector3().crossVectors(dir, up).normalize();
       if (perp1.lengthSq() < 0.001) perp1.set(1, 0, 0);
@@ -292,8 +291,21 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
     };
     window.addEventListener('resize', handleResize);
 
+    // Helper: Project 3D vector to screen (X, Y)
+    const projectToScreen = (v3) => {
+      const p = v3.clone().project(camera);
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      return {
+        x: (p.x * 0.5 + 0.5) * w,
+        y: (-(p.y * 0.5) + 0.5) * h,
+        visible: p.z < 1.0
+      };
+    };
+
     // Render loop
     let clock = new THREE.Clock();
+    let frameCounter = 0;
 
     const animate = () => {
       animFrameRef.current = requestAnimationFrame(animate);
@@ -311,6 +323,9 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       promptNeutronsGroup.visible = false;
       radGroup.visible = false;
 
+      // Track positions for 2D UI Overlay Labels
+      let currentLabels = [];
+
       // Phase 1: Equilibrium Quantum Jitter
       if (phase === 1) {
         incidentNeutron.position.set(-25, 0, 0);
@@ -324,6 +339,19 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         gluonField.position.set(0, 0, 0);
         gluonField.scale.set(1, 1, 1);
         gluonField.visible = true;
+
+        const mainPos = projectToScreen(new THREE.Vector3(0, 4.2, 0));
+        if (mainPos.visible) {
+          currentLabels.push({
+            id: 'u235',
+            title: 'Атом Урану-235 (²³⁵U)',
+            details: '92 протони (p⁺) | 143 нейтрони (n⁰)',
+            badge: '92p⁺ + 143n⁰',
+            color: '#00d2ff',
+            x: mainPos.x,
+            y: mainPos.y
+          });
+        }
       }
 
       // Phase 2: Incident Neutron Approach & Impact
@@ -337,6 +365,34 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           const jitterY = Math.cos(t * 7 + item.seed) * 0.15;
           item.mesh.position.set(item.basePos.x + jitterX, item.basePos.y + jitterY, item.basePos.z);
         });
+
+        // Label for incoming thermal neutron
+        const nPos = projectToScreen(new THREE.Vector3(neutronX, 1.2, 0));
+        if (nPos.visible) {
+          currentLabels.push({
+            id: 'n_inc',
+            title: 'Тепловий Нейтрон (n⁰)',
+            details: 'Енергія E ≈ 0.025 еВ',
+            badge: '1n⁰ (влучання)',
+            color: '#5ce1e6',
+            x: nPos.x,
+            y: nPos.y
+          });
+        }
+
+        // Label for U-235 -> U-236*
+        const targetPos = projectToScreen(new THREE.Vector3(0, 4.2, 0));
+        if (targetPos.visible) {
+          currentLabels.push({
+            id: 'u236',
+            title: 'Збуджене ядро Урану-236 (*)',
+            details: '92 протони | 144 нейтрони (E_ex ≈ 6.5 МеВ)',
+            badge: '92p⁺ + 144n⁰',
+            color: '#ff3b5c',
+            x: targetPos.x,
+            y: targetPos.y
+          });
+        }
       }
 
       // Phase 3: Deformation & Necking (Liquid Drop stretching)
@@ -354,6 +410,33 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         });
 
         gluonField.scale.set(stretchFactor * 1.2, pinchFactor * 0.9, pinchFactor * 0.9);
+
+        // Labels for left & right deforming lobes
+        const leftLobePos = projectToScreen(new THREE.Vector3(-stretchFactor * 2.5, 3.8, 0));
+        if (leftLobePos.visible) {
+          currentLabels.push({
+            id: 'ba_lobe',
+            title: 'Майбутній осколок Барію',
+            details: '56 протонів | 86 нейтронів',
+            badge: 'Ba lobe (56p)',
+            color: '#a855f7',
+            x: leftLobePos.x,
+            y: leftLobePos.y
+          });
+        }
+
+        const rightLobePos = projectToScreen(new THREE.Vector3(stretchFactor * 2.5, 3.8, 0));
+        if (rightLobePos.visible) {
+          currentLabels.push({
+            id: 'kr_lobe',
+            title: 'Майбутній осколок Криптону',
+            details: '36 протонів | 55 нейтронів',
+            badge: 'Kr lobe (36p)',
+            color: '#38bdf8',
+            x: rightLobePos.x,
+            y: rightLobePos.y
+          });
+        }
       }
 
       // Phase 4: Scission & Radiation Waves + 3 Yellow Free Neutrons
@@ -364,35 +447,47 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         const loopT = (t % 5);
         const sep = Math.min(15, loopT * 3.5);
 
-        // Split nucleus lobes into Ba-142 & Kr-91
         st.nucleons.forEach((item) => {
           const dir = item.cluster === 'left' ? -1 : 1;
           const sepX = item.basePos.x + dir * (sep + 1.5);
           item.mesh.position.set(sepX, item.basePos.y, item.basePos.z);
         });
 
-        // 3 Yellow Free Neutrons flying apart
+        // 3 Yellow Free Neutrons
         promptNeutronsGroup.visible = true;
-        st.promptNeutrons.forEach((p) => {
+        st.promptNeutrons.forEach((p, idx) => {
           const dist = loopT * 7.5;
-          p.mesh.position.copy(p.dir.clone().multiplyScalar(dist));
+          const pos = p.dir.clone().multiplyScalar(dist);
+          p.mesh.position.copy(pos);
+
+          if (idx === 0) {
+            const screenP = projectToScreen(pos.clone().add(new THREE.Vector3(0, 0.8, 0)));
+            if (screenP.visible) {
+              currentLabels.push({
+                id: `free_n_${idx}`,
+                title: '3 Вільні Нейтрони (n⁰)',
+                details: 'Жовті кульки після розпаду',
+                badge: '3 × 1n⁰ (E = 2 МеВ)',
+                color: '#ffbe0b',
+                x: screenP.x,
+                y: screenP.y
+              });
+            }
+          }
         });
 
-        // --- ANIMATE DYNAMIC SINE WAVE RADIATION RAYS RUSHING OUTWARDS ---
+        // Radiation waves
         radGroup.visible = true;
-        const waveSpeed = 16.0; // High speed radiation propagation
+        const waveSpeed = 16.0;
         const frequency = 2.5;
         const maxDist = Math.min(30, loopT * waveSpeed);
 
         st.radiationWaves.forEach((ray) => {
           const posArr = ray.positions;
           const numP = pointsPerRay;
-
           for (let p = 0; p < numP; p++) {
             const fraction = p / (numP - 1);
             const r = fraction * maxDist;
-
-            // Sine wave transverse displacement: amplitude peaks and oscillates
             const amp = Math.sin(fraction * Math.PI) * 0.7; 
             const waveValue = Math.sin(r * frequency - t * 18);
 
@@ -404,16 +499,42 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
             posArr[p * 3 + 1] = pointPos.y;
             posArr[p * 3 + 2] = pointPos.z;
           }
-
           ray.geo.attributes.position.needsUpdate = true;
           ray.line.material.opacity = Math.max(0, 1.0 - loopT / 5);
         });
+
+        // Labels for Ba-142 & Kr-91
+        const baPos = projectToScreen(new THREE.Vector3(-(sep + 3.0), 3.5, 0));
+        if (baPos.visible) {
+          currentLabels.push({
+            id: 'ba142',
+            title: 'Атом Барію-142 (¹⁴²Ba)',
+            details: '56 протонів | 86 нейтронів',
+            badge: '56p⁺ + 86n⁰',
+            color: '#a855f7',
+            x: baPos.x,
+            y: baPos.y
+          });
+        }
+
+        const krPos = projectToScreen(new THREE.Vector3((sep + 3.0), 3.5, 0));
+        if (krPos.visible) {
+          currentLabels.push({
+            id: 'kr91',
+            title: 'Атом Криптону-91 (⁹¹Kr)',
+            details: '36 протонів | 55 нейтронів',
+            badge: '36p⁺ + 55n⁰',
+            color: '#38bdf8',
+            x: krPos.x,
+            y: krPos.y
+          });
+        }
 
         pointLight.intensity = Math.max(0, 5 - loopT);
         redLight.intensity = Math.max(0, 5 - loopT);
       }
 
-      // Phase 5: Fission Products with continuous radiation waves
+      // Phase 5: Fission Products (Ba-142 + Kr-91 + 3 Free Neutrons)
       else if (phase === 5) {
         incidentNeutron.position.set(-25, 0, 0);
         gluonField.visible = false;
@@ -426,19 +547,32 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         });
 
         promptNeutronsGroup.visible = true;
-        st.promptNeutrons.forEach((p) => {
+        st.promptNeutrons.forEach((p, idx) => {
           const dist = 22 + Math.sin(t * 2 + p.id) * 3;
-          p.mesh.position.copy(p.dir.clone().multiplyScalar(dist));
+          const pos = p.dir.clone().multiplyScalar(dist);
+          p.mesh.position.copy(pos);
+
+          if (idx === 0) {
+            const screenP = projectToScreen(pos.clone().add(new THREE.Vector3(0, 0.8, 0)));
+            if (screenP.visible) {
+              currentLabels.push({
+                id: `free_n_${idx}`,
+                title: '3 Вільні Нейтрони (n⁰)',
+                details: 'Жовті кульки (розлітаються у просторі)',
+                badge: '3 × 1n⁰',
+                color: '#ffbe0b',
+                x: screenP.x,
+                y: screenP.y
+              });
+            }
+          }
         });
 
-        // Continuous radiation sine waves rushing into space
         radGroup.visible = true;
         const maxDist = 32;
-
         st.radiationWaves.forEach((ray) => {
           const posArr = ray.positions;
           const numP = pointsPerRay;
-
           for (let p = 0; p < numP; p++) {
             const fraction = p / (numP - 1);
             const r = fraction * maxDist;
@@ -452,13 +586,45 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
             posArr[p * 3 + 1] = pointPos.y;
             posArr[p * 3 + 2] = pointPos.z;
           }
-
           ray.geo.attributes.position.needsUpdate = true;
           ray.line.material.opacity = 0.8;
         });
+
+        // Final Fragment Labels
+        const baPos = projectToScreen(new THREE.Vector3(-18, 3.8, 0));
+        if (baPos.visible) {
+          currentLabels.push({
+            id: 'ba142_final',
+            title: 'Ядро Барію-142 (¹⁴²Ba)',
+            details: '56 протонів | 86 нейтронів',
+            badge: '56p⁺ + 86n⁰',
+            color: '#a855f7',
+            x: baPos.x,
+            y: baPos.y
+          });
+        }
+
+        const krPos = projectToScreen(new THREE.Vector3(18, 3.8, 0));
+        if (krPos.visible) {
+          currentLabels.push({
+            id: 'kr91_final',
+            title: 'Ядро Криптону-91 (⁹¹Kr)',
+            details: '36 протонів | 55 нейтронів',
+            badge: '36p⁺ + 55n⁰',
+            color: '#38bdf8',
+            x: krPos.x,
+            y: krPos.y
+          });
+        }
       }
 
       nucleonsGroup.rotation.y += 0.003;
+
+      // Update React State Labels throttle every 2 frames for 60fps performance
+      frameCounter++;
+      if (frameCounter % 2 === 0) {
+        setLabels(currentLabels);
+      }
 
       renderer.render(scene, camera);
     };
@@ -480,9 +646,44 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
   }, [phase, speed, showForces, isPlaying]);
 
   return (
-    <div 
-      ref={mountRef} 
-      style={{ width: '100%', height: '100%', position: 'relative', cursor: 'grab' }} 
-    />
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div 
+        ref={mountRef} 
+        style={{ width: '100%', height: '100%', position: 'relative', cursor: 'grab' }} 
+      />
+
+      {/* 2D HTML/CSS Glassmorphic Element Labels Overlaid in 3D Space */}
+      {labels.map((item) => (
+        <div
+          key={item.id}
+          className="glass-panel"
+          style={{
+            position: 'absolute',
+            left: `${item.x}px`,
+            top: `${item.y}px`,
+            transform: 'translate(-50%, -100%)',
+            pointerEvents: 'none',
+            zIndex: 25,
+            padding: '0.4rem 0.75rem',
+            border: `1px solid ${item.color}`,
+            borderRadius: '8px',
+            boxShadow: `0 0 15px ${item.color}40`,
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-heading)' }}>
+            {item.title}
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', margin: '2px 0' }}>
+            {item.details}
+          </div>
+          <span className="badge" style={{ background: `${item.color}25`, color: item.color, border: `1px solid ${item.color}50`, padding: '1px 6px', fontSize: '0.7rem' }}>
+            {item.badge}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
