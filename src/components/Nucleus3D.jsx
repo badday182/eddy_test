@@ -347,8 +347,8 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
       if (phase === 1) {
         incidentNeutron.position.set(-25, 0, 0);
 
-        baGroup.position.set(-0.8, 0, 0);
-        krGroup.position.set(0.8, 0, 0);
+        baGroup.position.set(-0.3, 0, 0);
+        krGroup.position.set(0.3, 0, 0);
 
         st.baNucleons.forEach((item) => {
           const jX = Math.sin(t * 4 + item.seed) * 0.1;
@@ -375,17 +375,16 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // --- PHASE 2: Incident Thermal Neutron Capture (FORWARD-ONLY LOOPING: -25 to -2.0) ---
+      // --- PHASE 2: Incident Thermal Neutron Capture ---
       else if (phase === 2) {
-        // Forward loop: 0 -> 1 -> restart at 0 (No reverse motion!)
         const cycleDuration = 3.5;
         const loopT = (t % cycleDuration);
         const progress = loopT / cycleDuration;
         const neutronX = THREE.MathUtils.lerp(-25, -2.0, progress);
         incidentNeutron.position.set(neutronX, 0, 0);
 
-        baGroup.position.set(-0.8, 0, 0);
-        krGroup.position.set(0.8, 0, 0);
+        baGroup.position.set(-0.3, 0, 0);
+        krGroup.position.set(0.3, 0, 0);
 
         st.baNucleons.forEach((item) => {
           const jX = Math.sin(t * 7 + item.seed) * 0.12;
@@ -423,25 +422,25 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // --- PHASE 3: Overlapping & Separation Initiation (FORWARD-ONLY LOOPING: 0.8 to 3.5) ---
+      // --- PHASE 3: Overlapping & Separation Initiation (DECREASED SEPARATION DISTANCE 3X: 0.3 to 1.15) ---
       else if (phase === 3) {
         incidentNeutron.position.set(-25, 0, 0);
 
-        // Forward linear separation loop: 0.8 -> 3.5 -> restart at 0.8 (No reverse sliding!)
+        // Forward linear separation loop reduced 3x: 0.3 -> 1.15 (nuclei stay much closer, overlapping heavily)
         const cycleDuration = 4.0;
         const loopT = (t % cycleDuration);
         const progress = loopT / cycleDuration;
-        const overlapSep = THREE.MathUtils.lerp(0.8, 3.5, progress);
+        const overlapSep = THREE.MathUtils.lerp(0.3, 1.15, progress);
 
         baGroup.position.set(-overlapSep, 0, 0);
         krGroup.position.set(overlapSep, 0, 0);
 
-        const leftLobePos = projectToScreen(new THREE.Vector3(-overlapSep - 1.0, 3.8, 0));
+        const leftLobePos = projectToScreen(new THREE.Vector3(-overlapSep - 0.6, 3.8, 0));
         if (leftLobePos.visible) {
           currentLabels.push({
             id: 'ba_lobe',
             title: 'Ядро Барію-142 (¹⁴²Ba)',
-            details: 'Початок зсуву від початкового стан',
+            details: 'Мінімальний зсув (накладання в 3 рази тісніше)',
             badge: '56p⁺ + 86n⁰',
             color: '#a855f7',
             x: leftLobePos.x,
@@ -449,7 +448,7 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
           });
         }
 
-        const rightLobePos = projectToScreen(new THREE.Vector3(overlapSep + 1.0, 3.8, 0));
+        const rightLobePos = projectToScreen(new THREE.Vector3(overlapSep + 0.6, 3.8, 0));
         if (rightLobePos.visible) {
           currentLabels.push({
             id: 'kr_lobe',
@@ -463,14 +462,14 @@ export function Nucleus3D({ phase, speed, showForces, isPlaying, onPhaseComplete
         }
       }
 
-      // --- PHASE 4: Scission & Rapid Flight Apart (FORWARD-ONLY LOOPING: 2.0 to 16.0) ---
+      // --- PHASE 4: Scission & Rapid Flight Apart (FORWARD-ONLY LOOPING: 1.15 to 16.0) ---
       else if (phase === 4) {
         incidentNeutron.position.set(-25, 0, 0);
 
         const cycleDuration = 4.5;
         const loopT = (t % cycleDuration);
         const progress = loopT / cycleDuration;
-        const flySep = THREE.MathUtils.lerp(2.0, 16.0, progress);
+        const flySep = THREE.MathUtils.lerp(1.15, 16.0, progress);
 
         baGroup.position.set(-flySep, 0, 0);
         krGroup.position.set(flySep, 0, 0);
